@@ -59,8 +59,12 @@ function buildEapiPayload(params, session) {
   };
 }
 
-async function requestEapi(apiPath, params, { fetchImpl = fetch } = {}) {
-  const session = await loadNeteaseSession();
+async function requestEapi(
+  apiPath,
+  params,
+  { fetchImpl = fetch, sessionProvider = loadNeteaseSession } = {},
+) {
+  const session = await sessionProvider();
   const payload = buildEapiPayload(params, session);
   const eapiPath = apiPath.replace(/^\/api\//, '/eapi/');
   const response = await fetchImpl(new URL(eapiPath, API_ORIGIN), {
@@ -99,12 +103,14 @@ function mapPlaylist(playlist, accountId) {
   };
 }
 
-export async function getPlaylistAuthStatus() {
-  return getSessionConfiguration();
+export async function getPlaylistAuthStatus({
+  sessionConfigurationProvider = getSessionConfiguration,
+} = {}) {
+  return sessionConfigurationProvider();
 }
 
-export async function getAuthenticatedAccount() {
-  const result = await requestEapi('/api/w/nuser/account/get', {});
+export async function getAuthenticatedAccount(options = {}) {
+  const result = await requestEapi('/api/w/nuser/account/get', {}, options);
   const userId = result?.profile?.userId ?? result?.account?.id;
   if (!userId) throw new Error('无法从网易云会话读取当前账号 ID。');
   return {
@@ -113,14 +119,14 @@ export async function getAuthenticatedAccount() {
   };
 }
 
-export async function listOwnPlaylists() {
-  const account = await getAuthenticatedAccount();
+export async function listOwnPlaylists(options = {}) {
+  const account = await getAuthenticatedAccount(options);
   const result = await requestEapi('/api/user/playlist', {
     uid: account.userId,
     limit: 1000,
     offset: 0,
     includeVideo: true,
-  });
+  }, options);
   const playlists = Array.isArray(result?.playlist) ? result.playlist : [];
   return {
     account,
@@ -128,22 +134,22 @@ export async function listOwnPlaylists() {
   };
 }
 
-async function assertOwnedPlaylist(playlistId) {
+async function assertOwnedPlaylist(playlistId, options = {}) {
   const normalizedId = assertNumericId(playlistId, '歌单 ID');
-  const result = await listOwnPlaylists();
+  const result = await listOwnPlaylists(options);
   const playlist = result.playlists.find((item) => item.id === normalizedId);
   if (!playlist) throw new Error('目标歌单不属于当前登录账号，已拒绝修改。');
   return playlist;
 }
 
-export async function createPlaylist(name, isPrivate = false) {
+export async function createPlaylist(name, isPrivate = false, options = {}) {
   const normalizedName = normalizePlaylistName(name);
-  const account = await getAuthenticatedAccount();
+  const account = await getAuthenticatedAccount(options);
   const result = await requestEapi('/api/playlist/create', {
     uid: account.userId,
     name: normalizedName,
     privacy: isPrivate ? 10 : 0,
-  });
+  }, options);
   const playlistId = result?.id ?? result?.playlist?.id;
   if (!playlistId) throw new Error('网易云返回创建成功，但缺少歌单 ID。');
   return {
@@ -155,14 +161,14 @@ export async function createPlaylist(name, isPrivate = false) {
   };
 }
 
-async function manipulatePlaylistTracks(playlistId, songIds, operation) {
-  const playlist = await assertOwnedPlaylist(playlistId);
+async function manipulatePlaylistTracks(playlistId, songIds, operation, options = {}) {
+  const playlist = await assertOwnedPlaylist(playlistId, options);
   const normalizedSongIds = normalizeSongIds(songIds);
   await requestEapi('/api/v1/playlist/manipulate/tracks', {
     pid: playlist.id,
     op: operation,
     trackIds: JSON.stringify(normalizedSongIds),
-  });
+  }, options);
   return {
     updated: true,
     operation: operation === 'add' ? 'add' : 'remove',
@@ -171,10 +177,10 @@ async function manipulatePlaylistTracks(playlistId, songIds, operation) {
   };
 }
 
-export async function addSongsToPlaylist(playlistId, songIds) {
-  return manipulatePlaylistTracks(playlistId, songIds, 'add');
+export async function addSongsToPlaylist(playlistId, songIds, options = {}) {
+  return manipulatePlaylistTracks(playlistId, songIds, 'add', options);
 }
 
-export async function removeSongsFromPlaylist(playlistId, songIds) {
-  return manipulatePlaylistTracks(playlistId, songIds, 'del');
+export async function removeSongsFromPlaylist(playlistId, songIds, options = {}) {
+  return manipulatePlaylistTracks(playlistId, songIds, 'del', options);
 }

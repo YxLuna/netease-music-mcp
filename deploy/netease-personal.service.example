@@ -1,0 +1,22 @@
+[Unit]
+Description=Personal NetEase Music MCP and OAuth service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netease-mcp
+Group=netease-mcp
+WorkingDirectory=/opt/netease-music-mcp
+EnvironmentFile=/etc/netease-music-mcp/personal.env
+ExecStart=/usr/bin/node /opt/netease-music-mcp/src/personal-server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/netease-music-mcp
+
+[Install]
+WantedBy=multi-user.target

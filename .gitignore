@@ -3,5 +3,7 @@ node_modules/
 *.log
 *.secret
 *.session
+auth.json
+master.key
 .DS_Store
 coverage/

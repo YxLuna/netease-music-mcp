@@ -1,12 +1,14 @@
 {
   "name": "netease-music-mcp",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Privacy-first NetEase Cloud Music MCP for desktop, server and mobile clients",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "start:http": "node src/http-server.js",
+    "start:personal": "node src/personal-server.js",
+    "init:personal": "node scripts/init-personal-service.js",
     "import:session:macos": "node scripts/import-macos-session.js",
     "test": "node --test"
   },

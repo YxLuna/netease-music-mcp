@@ -6,6 +6,13 @@
 
 > 非网易云音乐官方项目，与网易公司无隶属或背书关系。
 
+从 `v0.6.0` 起，项目同时提供：
+
+- 本机单用户 stdio MCP；
+- 兼容旧版秘密 URL 的私有 HTTP MCP；
+- 标准 OAuth 2.1 个人远程 MCP（每个部署只有一个所有者）；
+- 面向 ChatGPT、自建前端、DeepSeek 工具桥等客户端的 REST/OpenAPI 层。
+
 ## 可以在哪些设备使用
 
 - **Mac**：全部通用能力；附带稳定的 macOS 网易云客户端控制。
@@ -71,7 +78,66 @@ npm start
 这不是某一个 AI 产品的专用格式；任何支持 stdio MCP 的桌面端或自建前端
 都可以使用同一个服务。
 
+## 个人成品 MCP（OAuth、独立部署）
+
+个人模式使用你自己的地址 `https://your-domain.example/mcp`。支持远程
+MCP OAuth 的客户端会自动完成客户端注册、PKCE 登录和授权。一次部署只能
+初始化一个所有者；其他人应在自己的电脑、VPS 或容器中部署自己的实例，
+不会共用 Cookie、数据库、Token 或调用额度。
+
+所有者可以在自己的控制台生成、撤销个人 Token，供不支持 MCP OAuth 的
+自建前端或工具调用平台使用。
+
+初始化独立状态目录：
+
+```bash
+sudo install -d -m 700 -o netease-mcp -g netease-mcp /var/lib/netease-music-mcp
+sudo -u netease-mcp npm run init:personal -- /var/lib/netease-music-mcp
+```
+
+配置：
+
+```bash
+NETEASE_PERSONAL_ORIGIN=https://music.example.com
+NETEASE_PERSONAL_HOST=127.0.0.1
+NETEASE_PERSONAL_PORT=3304
+NETEASE_PERSONAL_STORE_FILE=/var/lib/netease-music-mcp/auth.json
+NETEASE_PERSONAL_MASTER_KEY_FILE=/var/lib/netease-music-mcp/master.key
+```
+
+启动：
+
+```bash
+npm run start:personal
+```
+
+入口如下：
+
+- MCP：`https://music.example.com/mcp`
+- 用户控制台：`https://music.example.com/dashboard`
+- OpenAPI：`https://music.example.com/openapi.json`
+- REST：`https://music.example.com/api/v1`
+
+完整的反向代理、OAuth、权限和迁移说明见
+[Personal remote guide](docs/PERSONAL_REMOTE.md)。示例 systemd 与 Nginx 配置
+位于 [`deploy/`](deploy/)。
+
+不同设备分别需要安装什么、如何接入，见
+[Device guide](docs/DEVICE_GUIDE.md)。
+
+![每个人一套的跨设备使用说明](docs/assets/device-guide-zh.png)
+
+Docker 快速路径：
+
+```bash
+export NETEASE_PERSONAL_ORIGIN=https://music.your-domain.example
+docker compose run --rm netease-mcp npm run init:personal -- /data
+docker compose up -d
+```
+
 ## 远程 HTTP 与手机连接
+
+这一节是旧版秘密 URL 模式。新部署优先采用上面的个人 OAuth 模式。
 
 先创建只允许当前用户读取的 64 位十六进制秘密：
 
@@ -119,6 +185,9 @@ npm run import:session:macos
 ## 安全和边界
 
 - 不保存账号密码，Cookie、`.env`、会话文件和秘密文件均被 Git 忽略。
+- 公共模式对密码使用 scrypt；访问令牌只保存 SHA-256 摘要，网易云会话
+  使用 AES-256-GCM 按用户加密。
+- OAuth 使用授权码 + PKCE、资源绑定和短期访问令牌；个人 Token 可撤销。
 - 账号写工具默认关闭，且只能修改当前会话账号拥有的歌单。
 - 不提供音频下载、解密、会员绕过或版权限制规避。
 - 不调用私有聊天接口，也不自动发送一起听消息。

@@ -1,0 +1,14 @@
+services:
+  netease-mcp:
+    build: .
+    restart: unless-stopped
+    environment:
+      NETEASE_PERSONAL_ORIGIN: ${NETEASE_PERSONAL_ORIGIN:?set NETEASE_PERSONAL_ORIGIN}
+      NETEASE_PERSONAL_CORS_ORIGINS: ${NETEASE_PERSONAL_CORS_ORIGINS:-}
+    ports:
+      - "127.0.0.1:3304:3304"
+    volumes:
+      - netease-personal-data:/data
+
+volumes:
+  netease-personal-data:

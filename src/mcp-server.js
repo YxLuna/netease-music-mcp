@@ -48,7 +48,20 @@ async function handle(operation) {
   }
 }
 
-export function createNeteaseMcpServer() {
+export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
+  const accountOptions = accountContext
+    ? {
+        sessionProvider: accountContext.loadNeteaseSession,
+        sessionConfigurationProvider: accountContext.getSessionConfiguration,
+      }
+    : {};
+  const guarded = (scope, operation) =>
+    handle(async () => {
+      if (authInfo && !authInfo.scopes.includes(scope)) {
+        throw new Error(`当前 Token 缺少 ${scope} 权限。`);
+      }
+      return operation();
+    });
   const server = new McpServer(
     {
       name: 'netease-music-mcp',
@@ -68,7 +81,7 @@ export function createNeteaseMcpServer() {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async () => handle(getPlaylistAuthStatus),
+    async () => guarded('playlist:read', () => getPlaylistAuthStatus(accountOptions)),
   );
 
   server.registerTool(
@@ -79,7 +92,7 @@ export function createNeteaseMcpServer() {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async () => handle(listOwnPlaylists),
+    async () => guarded('playlist:read', () => listOwnPlaylists(accountOptions)),
   );
 
   server.registerTool(
@@ -99,7 +112,8 @@ export function createNeteaseMcpServer() {
         openWorldHint: true,
       },
     },
-    async ({ name, isPrivate }) => handle(() => createPlaylist(name, isPrivate)),
+    async ({ name, isPrivate }) =>
+      guarded('playlist:write', () => createPlaylist(name, isPrivate, accountOptions)),
   );
 
   server.registerTool(
@@ -120,7 +134,9 @@ export function createNeteaseMcpServer() {
       },
     },
     async ({ playlistId, songIds }) =>
-      handle(() => addSongsToPlaylist(playlistId, songIds)),
+      guarded('playlist:write', () =>
+        addSongsToPlaylist(playlistId, songIds, accountOptions),
+      ),
   );
 
   server.registerTool(
@@ -141,7 +157,9 @@ export function createNeteaseMcpServer() {
       },
     },
     async ({ playlistId, songIds }) =>
-      handle(() => removeSongsFromPlaylist(playlistId, songIds)),
+      guarded('playlist:write', () =>
+        removeSongsFromPlaylist(playlistId, songIds, accountOptions),
+      ),
   );
 
   server.registerTool(
@@ -152,7 +170,7 @@ export function createNeteaseMcpServer() {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async () => handle(getClientStatus),
+    async () => guarded('music:read', getClientStatus),
   );
 
   server.registerTool(
@@ -167,7 +185,8 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query, limit, offset }) => handle(() => searchSongs(query, limit, offset)),
+    async ({ query, limit, offset }) =>
+      guarded('music:read', () => searchSongs(query, limit, offset)),
   );
 
   server.registerTool(
@@ -180,7 +199,7 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ songIds }) => handle(() => getSongDetails(songIds)),
+    async ({ songIds }) => guarded('music:read', () => getSongDetails(songIds)),
   );
 
   server.registerTool(
@@ -193,7 +212,7 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ songId }) => handle(() => getLyrics(songId)),
+    async ({ songId }) => guarded('music:read', () => getLyrics(songId)),
   );
 
   server.registerTool(
@@ -204,7 +223,7 @@ export function createNeteaseMcpServer() {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
-    async () => handle(launchClient),
+    async () => guarded('player:control', launchClient),
   );
 
   server.registerTool(
@@ -218,7 +237,8 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
-    async ({ type, id }) => handle(() => openEntity(type, id)),
+    async ({ type, id }) =>
+      guarded('player:control', () => openEntity(type, id)),
   );
 
   server.registerTool(
@@ -231,7 +251,7 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
-    async ({ area }) => handle(() => openClientArea(area)),
+    async ({ area }) => guarded('player:control', () => openClientArea(area)),
   );
 
   server.registerTool(
@@ -243,7 +263,7 @@ export function createNeteaseMcpServer() {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async () => handle(getListenTogetherCapabilities),
+    async () => guarded('player:control', getListenTogetherCapabilities),
   );
 
   server.registerTool(
@@ -260,7 +280,7 @@ export function createNeteaseMcpServer() {
         openWorldHint: true,
       },
     },
-    async () => handle(openListenTogetherInvite),
+    async () => guarded('player:control', openListenTogetherInvite),
   );
 
   server.registerTool(
@@ -277,7 +297,7 @@ export function createNeteaseMcpServer() {
         openWorldHint: false,
       },
     },
-    async () => handle(nextTrackDirect),
+    async () => guarded('player:control', nextTrackDirect),
   );
 
   server.registerTool(
@@ -290,7 +310,7 @@ export function createNeteaseMcpServer() {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
-    async ({ action }) => handle(() => controlPlayback(action)),
+    async ({ action }) => guarded('player:control', () => controlPlayback(action)),
   );
 
   return server;
