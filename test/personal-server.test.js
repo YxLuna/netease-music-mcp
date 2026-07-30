@@ -73,10 +73,11 @@ test('publishes OAuth discovery and challenges anonymous MCP clients', async () 
       }),
     });
     assert.equal(unauthorized.status, 401);
-    assert.match(
-      unauthorized.headers.get('www-authenticate'),
-      /oauth-protected-resource\/mcp/,
-    );
+    const challenge = unauthorized.headers.get('www-authenticate');
+    assert.match(challenge, /oauth-protected-resource\/mcp/);
+    assert.match(challenge, /music:read/);
+    assert.match(challenge, /playlist:read/);
+    assert.match(challenge, /playlist:write/);
   });
 });
 

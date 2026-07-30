@@ -439,7 +439,7 @@ export async function createPersonalNeteaseServer({
   };
   const mcpAuthGate = requireBearerAuth({
     verifier,
-    requiredScopes: ['music:read'],
+    requiredScopes: ['music:read', 'playlist:read', 'playlist:write'],
     resourceMetadataUrl: metadataUrl,
   });
   const mcpHandler = createMcpHandler(
