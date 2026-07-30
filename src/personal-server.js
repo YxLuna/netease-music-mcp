@@ -33,6 +33,8 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3304;
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_FORM_BYTES = 64 * 1024;
+const DEFAULT_HTML_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
 function json(response, status, data, headers = {}) {
   response.writeHead(status, {
@@ -48,14 +50,27 @@ function html(response, status, body, headers = {}) {
   response.writeHead(status, {
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
-    'content-security-policy':
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    'content-security-policy': DEFAULT_HTML_CSP,
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
     ...headers,
   });
   response.end(body);
+}
+
+function oauthConsentCsp(redirectUri) {
+  const callback = new URL(redirectUri);
+  const callbackSource = ['http:', 'https:'].includes(callback.protocol)
+    ? callback.origin
+    : callback.protocol;
+  return [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    `form-action 'self' ${callbackSource}`,
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ');
 }
 
 function redirect(response, location, cookies = []) {
@@ -652,10 +667,15 @@ export async function createPersonalNeteaseServer({
                   )
                   .join('')}
                 <input type="hidden" name="csrf" value="${escapeHtml(account.csrfToken)}">
-                <button name="decision" value="approve">允许</button>
-                <button class="secondary" name="decision" value="deny">拒绝</button>
+                <button type="submit" name="decision" value="approve">允许</button>
+                <button type="submit" class="secondary" name="decision" value="deny">拒绝</button>
               </form></div>`,
           ),
+          {
+            'content-security-policy': oauthConsentCsp(
+              incoming.searchParams.get('redirect_uri'),
+            ),
+          },
         );
         return;
       }

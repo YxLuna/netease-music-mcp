@@ -115,12 +115,13 @@ test('allows one-time owner setup and rejects a second owner', async () => {
 
 test('completes dynamic registration, PKCE authorization and MCP access', async () => {
   await withServer(async ({ baseUrl, store, errors }) => {
+    const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
     const registration = await fetch(`${baseUrl}/oauth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         client_name: 'cross-platform test',
-        redirect_uris: ['http://127.0.0.1/callback'],
+        redirect_uris: [redirectUri],
         token_endpoint_auth_method: 'none',
       }),
     });
@@ -134,7 +135,7 @@ test('completes dynamic registration, PKCE authorization and MCP access', async 
     const authorize = new URL(`${baseUrl}/oauth/authorize`);
     authorize.searchParams.set('response_type', 'code');
     authorize.searchParams.set('client_id', client.client_id);
-    authorize.searchParams.set('redirect_uri', 'http://127.0.0.1/callback');
+    authorize.searchParams.set('redirect_uri', redirectUri);
     authorize.searchParams.set('scope', PERSONAL_SCOPES.join(' '));
     authorize.searchParams.set('state', 'test-state');
     authorize.searchParams.set('resource', RESOURCE);
@@ -146,6 +147,10 @@ test('completes dynamic registration, PKCE authorization and MCP access', async 
     });
     assert.equal(consent.status, 200);
     assert.match(await consent.text(), /cross-platform test/);
+    assert.match(
+      consent.headers.get('content-security-policy'),
+      /form-action 'self' https:\/\/claude\.ai/,
+    );
 
     const form = new URLSearchParams(authorize.searchParams);
     form.set('decision', 'approve');
@@ -171,7 +176,7 @@ test('completes dynamic registration, PKCE authorization and MCP access', async 
         grant_type: 'authorization_code',
         client_id: client.client_id,
         code: callback.searchParams.get('code'),
-        redirect_uri: 'http://127.0.0.1/callback',
+        redirect_uri: redirectUri,
         code_verifier: verifier,
         resource: RESOURCE,
       }),
