@@ -230,7 +230,7 @@ function createOpenApi(origin) {
     openapi: '3.1.0',
     info: {
       title: 'NetEase Music MCP companion API',
-      version: '0.6.0',
+      version: '0.7.0',
       description:
         'Platform-neutral REST bridge for self-hosted frontends and tool-calling clients that do not support remote MCP.',
     },
@@ -508,7 +508,7 @@ export async function createPersonalNeteaseServer({
       }
 
       if (pathname === '/healthz' && request.method === 'GET') {
-        json(response, 200, { ok: true, service: 'netease-music-personal-mcp', version: '0.6.0' });
+        json(response, 200, { ok: true, service: 'netease-music-personal-mcp', version: '0.7.0' });
         return;
       }
 

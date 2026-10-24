@@ -17,6 +17,7 @@ import {
 import {
   addSongsToPlaylist,
   createPlaylist,
+  getAccountStatus,
   getPlaylistAuthStatus,
   listOwnPlaylists,
   removeSongsFromPlaylist,
@@ -65,7 +66,7 @@ export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
   const server = new McpServer(
     {
       name: 'netease-music-mcp',
-      version: '0.5.0',
+      version: '0.7.0',
     },
     {
       instructions:
@@ -82,6 +83,17 @@ export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => guarded('playlist:read', () => getPlaylistAuthStatus(accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_account_status',
+    {
+      title: '网易云账号与会员状态',
+      description: '用已保存的登录会话读取当前账号昵称和会员类型（vipType > 0 为会员），判断会话是否有效；不返回任何 Cookie 值。',
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async () => guarded('playlist:read', () => getAccountStatus(accountOptions)),
   );
 
   server.registerTool(

@@ -178,7 +178,7 @@ Invoke-WebRequest http://127.0.0.1:3304/healthz
 正常结果会包含：
 
 ```json
-{"ok":true,"service":"netease-music-personal-mcp","version":"0.6.0"}
+{"ok":true,"service":"netease-music-personal-mcp","version":"0.7.0"}
 ```
 
 ## 7. 给服务配置 HTTPS 域名
@@ -258,7 +258,27 @@ https://music.example.com/dashboard
 
 需要创建或修改歌单时，才需要自己的 `MUSIC_U`。
 
-### 在浏览器中找到 `MUSIC_U`
+### 方法一（推荐）：扫码
+
+在自己电脑上、项目目录里运行：
+
+```bash
+npm run login:qr -- --out ./netease.session
+```
+
+终端里会出现一个二维码。打开手机上的网易云音乐 App，用「扫一扫」扫它，
+再在手机上点「确认登录」。脚本会：
+
+- 只把 `MUSIC_U` 和 `__csrf` 存进 `netease.session`（权限 `600`，已被 Git 忽略）；
+- 告诉你这个账号是不是会员。
+
+然后在自己电脑上打开这个文件，把里面那一行粘贴到 MCP 的 `/dashboard`
+「网易云账号会话」里。粘贴完可以删掉这个文件。不要把它发给任何人。
+
+为什么推荐扫码、以及「存了 Cookie 却认不出会员」怎么查，见
+[扫码登录与会员识别](QR_LOGIN_ZH.md)。
+
+### 方法二：在浏览器中找到 `MUSIC_U`
 
 以下步骤以 Chrome 或 Edge 为例：
 

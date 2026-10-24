@@ -40,6 +40,7 @@
 - `netease_song_detail`：读取歌曲详情。
 - `netease_lyrics`：读取歌词、翻译和罗马音。
 - `netease_playlist_auth_status`：检查歌单账号能力配置，不返回 Cookie。
+- `netease_account_status`：读取当前账号昵称和会员类型（`vipType > 0` 为会员），顺便确认会话还有效；不返回 Cookie。
 - `netease_playlist_list`：列出当前账号创建的歌单。
 - `netease_playlist_create`：创建公开或隐私歌单。
 - `netease_playlist_add_songs`：添加歌曲到指定歌单。
@@ -177,7 +178,19 @@ export NETEASE_MCP_ACCOUNT_WRITE_ENABLED=1
 export NETEASE_MCP_COOKIE_FILE=/absolute/path/to/netease.session
 ```
 
-macOS 用户可在官方客户端登录后运行：
+**推荐：扫码登录（任何系统）。** 终端里会出一个二维码，用网易云音乐 App
+扫一下、在手机上点确认，脚本自动只把 `MUSIC_U` 和 `__csrf` 存进上面那个
+文件（权限 `600`），并告诉你这个号是不是会员：
+
+```bash
+npm run login:qr                                # 存到 NETEASE_MCP_COOKIE_FILE
+npm run login:qr -- --out ./netease.session     # 或者自己指定文件
+```
+
+原理和「存了 Cookie 却认不出会员」的排查，见
+[扫码登录与会员识别](docs/QR_LOGIN_ZH.md)。
+
+macOS 用户也可以在官方客户端登录后运行：
 
 ```bash
 npm run import:session:macos

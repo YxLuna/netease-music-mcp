@@ -98,7 +98,8 @@ test('serves MCP initialize and tools/list over stateless HTTP', async () => {
     });
     assert.equal(tools.status, 200);
     const listed = await readMcpResponse(tools);
-    assert.equal(listed.result.tools.length, 16);
+    assert.equal(listed.result.tools.length, 17);
+    assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_account_status'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_control'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_next_track'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_playlist_create'));

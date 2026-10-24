@@ -1,6 +1,6 @@
 {
   "name": "netease-music-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "Privacy-first NetEase Cloud Music MCP for desktop, server and mobile clients",
   "main": "src/server.js",
@@ -10,6 +10,7 @@
     "start:personal": "node src/personal-server.js",
     "init:personal": "node scripts/init-personal-service.js",
     "import:session:macos": "node scripts/import-macos-session.js",
+    "login:qr": "node scripts/login-qr.js",
     "test": "node --test"
   },
   "engines": {
@@ -23,6 +24,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0-beta.4",
+    "qrcode-terminal": "0.12.0",
     "zod": "4.4.3"
   }
 }

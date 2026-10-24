@@ -113,9 +113,23 @@ export async function getAuthenticatedAccount(options = {}) {
   const result = await requestEapi('/api/w/nuser/account/get', {}, options);
   const userId = result?.profile?.userId ?? result?.account?.id;
   if (!userId) throw new Error('无法从网易云会话读取当前账号 ID。');
+  const vipType = Number(result?.account?.vipType ?? 0) || 0;
   return {
     userId: String(userId),
     nickname: result?.profile?.nickname ?? '',
+    vipType,
+    isVip: vipType > 0,
+  };
+}
+
+// 会员识别：vipType > 0 即会员（常见 11 = 黑胶 VIP）。会话失效时 requestEapi 会报 301。
+export async function getAccountStatus(options = {}) {
+  const account = await getAuthenticatedAccount(options);
+  return {
+    loggedIn: true,
+    nickname: account.nickname,
+    vipType: account.vipType,
+    isVip: account.isVip,
   };
 }
 
