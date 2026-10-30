@@ -78,6 +78,18 @@ test('publishes OAuth discovery and challenges anonymous MCP clients', async () 
     assert.match(challenge, /music:read/);
     assert.match(challenge, /playlist:read/);
     assert.match(challenge, /playlist:write/);
+
+    const badToken = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        authorization: 'Bearer not-a-real-token',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    assert.equal(badToken.status, 401);
+    assert.equal((await badToken.json()).error, 'invalid_token');
   });
 });
 

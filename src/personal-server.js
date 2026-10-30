@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url';
 import {
   createMcpHandler,
   getOAuthProtectedResourceMetadataUrl,
+  OAuthError,
+  OAuthErrorCode,
   oauthMetadataResponse,
   requireBearerAuth,
 } from '@modelcontextprotocol/server';
@@ -434,8 +436,18 @@ export async function createPersonalNeteaseServer({
     serviceDocumentationUrl: new URL(`${originString}/docs`),
     dangerouslyAllowInsecureIssuerUrl: canonicalOrigin.protocol !== 'https:',
   };
+  // requireBearerAuth 只把 OAuthError 映射成 401，普通 Error 会变成 500。
   const verifier = {
-    verifyAccessToken: (token) => store.verifyAccessToken(token, resource),
+    verifyAccessToken: async (token) => {
+      try {
+        return await store.verifyAccessToken(token, resource);
+      } catch (error) {
+        if (error?.message === '无效的访问令牌。') {
+          throw new OAuthError(OAuthErrorCode.InvalidToken, error.message);
+        }
+        throw error;
+      }
+    },
   };
   const mcpAuthGate = requireBearerAuth({
     verifier,
