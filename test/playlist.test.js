@@ -13,6 +13,7 @@ import {
   listAccountPlaylists,
   setPlaylistSubscribed,
   setSongLiked,
+  updatePlaylistInfo,
 } from '../src/playlist.js';
 
 const EAPI_KEY = Buffer.from('e82ckenh8dichen8', 'utf8');
@@ -55,7 +56,7 @@ const USER_PLAYLISTS = {
   '/api/user/playlist': () => ({
     playlist: [
       { id: 1, name: '我喜欢的音乐', userId: Number(ACCOUNT_ID), specialType: 5, trackCount: 3 },
-      { id: 2, name: '跑步', userId: Number(ACCOUNT_ID), trackCount: 10 },
+      { id: 2, name: '跑步', description: '旧简介', userId: Number(ACCOUNT_ID), trackCount: 10 },
       { id: 3, name: '别人的歌单', userId: 42, subscribed: true, creator: { nickname: '路人' } },
     ],
   }),
@@ -199,4 +200,34 @@ test('likes songs and subscribes only to playlists owned by others', async () =>
   assert.equal((await setPlaylistSubscribed('3', true, options)).subscribed, true);
   assert.equal((await setPlaylistSubscribed('3', false, options)).subscribed, false);
   await assert.rejects(setPlaylistSubscribed('2', true, options), /自己创建/);
+});
+
+test('updates name and description of owned playlists only', async () => {
+  const { calls, options } = fakeNetease({
+    ...USER_PLAYLISTS,
+    '/api/playlist/update/name': () => ({}),
+    '/api/playlist/desc/update': () => ({}),
+  });
+  assert.deepEqual(await updatePlaylistInfo('2', { name: ' 夜跑 ', description: '新简介' }, options), {
+    updated: true,
+    playlistId: '2',
+    previousName: '跑步',
+    name: '夜跑',
+    previousDescription: '旧简介',
+    description: '新简介',
+  });
+  const nameCall = calls.find((call) => call.apiPath === '/api/playlist/update/name').payload;
+  assert.deepEqual([nameCall.id, nameCall.name], ['2', '夜跑']);
+  const descCall = calls.find((call) => call.apiPath === '/api/playlist/desc/update').payload;
+  assert.deepEqual([descCall.id, descCall.desc], ['2', '新简介']);
+
+  const before = calls.length;
+  const descOnly = await updatePlaylistInfo('2', { description: '' }, options);
+  assert.equal(descOnly.name, undefined);
+  assert.equal(calls.slice(before).some((call) => call.apiPath === '/api/playlist/update/name'), false);
+
+  await assert.rejects(updatePlaylistInfo('2', {}, options), /至少/);
+  await assert.rejects(updatePlaylistInfo('3', { name: 'x' }, options), /不属于/);
+  await assert.rejects(updatePlaylistInfo('1', { name: 'x' }, options), /不能改名/);
+  await assert.rejects(updatePlaylistInfo('2', { description: 'a'.repeat(1001) }, options), /1000/);
 });

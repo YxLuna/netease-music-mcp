@@ -96,6 +96,7 @@ function mapPlaylist(playlist, accountId) {
   return {
     id: String(playlist?.id ?? ''),
     name: playlist?.name ?? '',
+    description: playlist?.description ?? null,
     trackCount: Number(playlist?.trackCount ?? 0),
     privacy: Number(playlist?.privacy ?? 0),
     specialType: Number(playlist?.specialType ?? 0),
@@ -378,6 +379,40 @@ export async function addSongsToPlaylist(playlistId, songIds, options = {}) {
 
 export async function removeSongsFromPlaylist(playlistId, songIds, options = {}) {
   return manipulatePlaylistTracks(playlistId, songIds, 'del', options);
+}
+
+const MAX_DESCRIPTION_LENGTH = 1000;
+
+// 只改传入的字段；「我喜欢的音乐」网易云不允许改名，提前拒绝。
+export async function updatePlaylistInfo(playlistId, { name, description } = {}, options = {}) {
+  if (name === undefined && description === undefined) throw new Error('name 和 description 至少要传一个。');
+  const playlist = await assertOwnedPlaylist(playlistId, options);
+  const normalizedName = name === undefined ? undefined : normalizePlaylistName(name);
+  if (normalizedName !== undefined && playlist.specialType === 5) {
+    throw new Error('「我喜欢的音乐」不能改名。');
+  }
+  let normalizedDescription;
+  if (description !== undefined) {
+    normalizedDescription = String(description ?? '').trim();
+    if (normalizedDescription.length > MAX_DESCRIPTION_LENGTH) {
+      throw new Error(`歌单简介不能超过 ${MAX_DESCRIPTION_LENGTH} 个字符。`);
+    }
+  }
+  if (normalizedName !== undefined) {
+    await requestEapi('/api/playlist/update/name', { id: playlist.id, name: normalizedName }, options);
+  }
+  if (normalizedDescription !== undefined) {
+    await requestEapi('/api/playlist/desc/update', { id: playlist.id, desc: normalizedDescription }, options);
+  }
+  return {
+    updated: true,
+    playlistId: playlist.id,
+    ...(normalizedName !== undefined && { previousName: playlist.name, name: normalizedName }),
+    ...(normalizedDescription !== undefined && {
+      previousDescription: playlist.description,
+      description: normalizedDescription,
+    }),
+  };
 }
 
 // /api/radio/like 实测会被风控拦截（code -460），改为直接增删「我喜欢的音乐」歌单，效果与红心一致。

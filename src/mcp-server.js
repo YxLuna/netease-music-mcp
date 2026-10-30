@@ -30,6 +30,7 @@ import {
   removeSongsFromPlaylist,
   setPlaylistSubscribed,
   setSongLiked,
+  updatePlaylistInfo,
 } from './playlist.js';
 
 const numericId = z.string().regex(/^\d{1,20}$/);
@@ -264,6 +265,30 @@ export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
     async ({ playlistId, subscribe }) =>
       guarded('playlist:write', () =>
         setPlaylistSubscribed(playlistId, subscribe, accountOptions),
+      ),
+  );
+
+  server.registerTool(
+    'netease_playlist_update',
+    {
+      title: '修改歌单名称或简介',
+      description: '修改当前账号自建歌单的名称和/或简介，只改传入的字段；「我喜欢的音乐」不能改名，简介传空字符串表示清空。返回修改前的值。必须在用户明确确认后调用。',
+      inputSchema: z.object({
+        playlistId: numericId,
+        name: z.string().min(1).max(40).optional(),
+        description: z.string().max(1000).optional(),
+        confirm: z.literal(true).describe('用户已明确确认这次歌单信息修改'),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ playlistId, name, description }) =>
+      guarded('playlist:write', () =>
+        updatePlaylistInfo(playlistId, { name, description }, accountOptions),
       ),
   );
 

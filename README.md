@@ -54,6 +54,7 @@
 - `netease_playlist_remove_songs`：从指定歌单移除歌曲。
 - `netease_song_like`：红心 / 取消红心歌曲（需 `confirm: true`）。
 - `netease_playlist_subscribe`：收藏 / 取消收藏别人的歌单（需 `confirm: true`）。
+- `netease_playlist_update`：修改自建歌单的名称和 / 或简介（需 `confirm: true`；「我喜欢的音乐」不能改名）。
 - `netease_listen_together_capabilities`：报告当前设备的一起听能力。
 
 ### macOS 本地适配器
