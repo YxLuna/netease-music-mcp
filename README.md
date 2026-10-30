@@ -41,10 +41,18 @@
 - `netease_lyrics`：读取歌词、翻译和罗马音。
 - `netease_playlist_auth_status`：检查歌单账号能力配置，不返回 Cookie。
 - `netease_account_status`：读取当前账号昵称和会员类型（`vipType > 0` 为会员），顺便确认会话还有效；不返回 Cookie。
-- `netease_playlist_list`：列出当前账号创建的歌单。
+- `netease_playlist_list`：列出当前账号的歌单（`include`：自建 / 收藏 / 全部）。
+- `netease_playlist_tracks`：分页读取歌单曲目。
+- `netease_liked_songs`：读取「我喜欢的音乐」，可只取全部 ID 用于去重。
+- `netease_play_record`：读取听歌排行（最近一周 / 所有时间）。
+- `netease_daily_recommend`：读取每日推荐歌曲及推荐理由。
+- `netease_similar_songs`：按歌曲查找相似歌曲。
+- `netease_recommend_playlists`：读取每日推荐歌单。
 - `netease_playlist_create`：创建公开或隐私歌单。
 - `netease_playlist_add_songs`：添加歌曲到指定歌单。
 - `netease_playlist_remove_songs`：从指定歌单移除歌曲。
+- `netease_song_like`：红心 / 取消红心歌曲（需 `confirm: true`）。
+- `netease_playlist_subscribe`：收藏 / 取消收藏别人的歌单（需 `confirm: true`）。
 - `netease_listen_together_capabilities`：报告当前设备的一起听能力。
 
 ### macOS 本地适配器

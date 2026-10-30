@@ -1,5 +1,6 @@
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 
+import { mapSong } from './netease.js';
 import { getSessionConfiguration, loadNeteaseSession } from './session.js';
 
 const API_ORIGIN = 'https://music.163.com';
@@ -99,7 +100,54 @@ function mapPlaylist(playlist, accountId) {
     privacy: Number(playlist?.privacy ?? 0),
     specialType: Number(playlist?.specialType ?? 0),
     owned: String(playlist?.userId ?? '') === String(accountId),
+    subscribed: Boolean(playlist?.subscribed),
+    creator: playlist?.creator?.nickname ?? null,
     pageUrl: playlist?.id ? `${API_ORIGIN}/#/playlist?id=${playlist.id}` : null,
+  };
+}
+
+const MAX_PAGE_SIZE = 500;
+const SONG_DETAIL_BATCH = 500;
+
+function normalizePage(limit = 100, offset = 0) {
+  const size = Number(limit);
+  const start = Number(offset);
+  if (!Number.isInteger(size) || size < 1 || size > MAX_PAGE_SIZE) {
+    throw new Error(`limit 必须是 1–${MAX_PAGE_SIZE} 的整数。`);
+  }
+  if (!Number.isInteger(start) || start < 0) {
+    throw new Error('offset 必须是非负整数。');
+  }
+  return { limit: size, offset: start };
+}
+
+// 账号会话下的批量歌曲详情，按 trackIds 原顺序返回；网易云单次最多接受约 1000 个 ID。
+async function getSongsByIds(songIds, options = {}) {
+  const songs = [];
+  for (let index = 0; index < songIds.length; index += SONG_DETAIL_BATCH) {
+    const batch = songIds.slice(index, index + SONG_DETAIL_BATCH);
+    const result = await requestEapi('/api/v3/song/detail', {
+      c: JSON.stringify(batch.map((id) => ({ id: Number(id) }))),
+    }, options);
+    const byId = new Map(
+      (Array.isArray(result?.songs) ? result.songs : []).map((song) => [String(song?.id), song]),
+    );
+    for (const id of batch) {
+      const song = byId.get(String(id));
+      if (song) songs.push(mapSong(song));
+    }
+  }
+  return songs;
+}
+
+async function pageSongIds(allIds, page, options) {
+  const ids = allIds.slice(page.offset, page.offset + page.limit);
+  return {
+    total: allIds.length,
+    offset: page.offset,
+    limit: page.limit,
+    hasMore: page.offset + ids.length < allIds.length,
+    songs: await getSongsByIds(ids, options),
   };
 }
 
@@ -133,7 +181,16 @@ export async function getAccountStatus(options = {}) {
   };
 }
 
-export async function listOwnPlaylists(options = {}) {
+const PLAYLIST_FILTERS = Object.freeze({
+  created: (playlist) => playlist.owned,
+  subscribed: (playlist) => !playlist.owned,
+  all: () => true,
+});
+
+// /api/user/playlist 同时返回自建和收藏的歌单；「我喜欢的音乐」是自建歌单里 specialType = 5 的那一个。
+export async function listAccountPlaylists(include = 'created', options = {}) {
+  const filter = PLAYLIST_FILTERS[include];
+  if (!filter) throw new Error('include 只能是 created、subscribed 或 all。');
   const account = await getAuthenticatedAccount(options);
   const result = await requestEapi('/api/user/playlist', {
     uid: account.userId,
@@ -144,7 +201,106 @@ export async function listOwnPlaylists(options = {}) {
   const playlists = Array.isArray(result?.playlist) ? result.playlist : [];
   return {
     account,
-    playlists: playlists.map((playlist) => mapPlaylist(playlist, account.userId)).filter((p) => p.owned),
+    playlists: playlists.map((playlist) => mapPlaylist(playlist, account.userId)).filter(filter),
+  };
+}
+
+export async function listOwnPlaylists(options = {}) {
+  return listAccountPlaylists('created', options);
+}
+
+export async function getPlaylistTracks(playlistId, { limit, offset } = {}, options = {}) {
+  const normalizedId = assertNumericId(playlistId, '歌单 ID');
+  const page = normalizePage(limit, offset);
+  const result = await requestEapi('/api/v6/playlist/detail', {
+    id: normalizedId,
+    n: 100000,
+    s: 0,
+  }, options);
+  const playlist = result?.playlist;
+  if (!playlist) throw new Error('网易云没有返回该歌单，可能不存在或无权查看。');
+  const trackIds = (Array.isArray(playlist.trackIds) ? playlist.trackIds : [])
+    .map((item) => String(item?.id ?? ''))
+    .filter(Boolean);
+  return {
+    playlist: {
+      id: String(playlist.id ?? normalizedId),
+      name: playlist.name ?? '',
+      trackCount: Number(playlist.trackCount ?? trackIds.length),
+      creator: playlist.creator?.nickname ?? null,
+    },
+    ...(await pageSongIds(trackIds, page, options)),
+  };
+}
+
+export async function getLikedSongs({ limit, offset, idsOnly = false } = {}, options = {}) {
+  const account = await getAuthenticatedAccount(options);
+  const result = await requestEapi('/api/song/like/get', { uid: account.userId }, options);
+  const ids = (Array.isArray(result?.ids) ? result.ids : []).map(String);
+  if (idsOnly) return { total: ids.length, songIds: ids };
+  return pageSongIds(ids, normalizePage(limit, offset), options);
+}
+
+const PLAY_RECORD_TYPES = Object.freeze({ week: 1, all: 0 });
+
+export async function getPlayRecord(period = 'week', options = {}) {
+  const type = PLAY_RECORD_TYPES[period];
+  if (type === undefined) throw new Error('period 只能是 week 或 all。');
+  const account = await getAuthenticatedAccount(options);
+  const result = await requestEapi('/api/v1/play/record', { uid: account.userId, type }, options);
+  const records = (period === 'week' ? result?.weekData : result?.allData) ?? [];
+  return {
+    period,
+    songs: records.map((record) => ({
+      ...mapSong(record?.song),
+      playCount: Number(record?.playCount ?? 0),
+      score: Number(record?.score ?? 0),
+    })),
+  };
+}
+
+export async function getDailyRecommendSongs(options = {}) {
+  const result = await requestEapi('/api/v3/discovery/recommend/songs', {}, options);
+  const reasons = new Map(
+    (result?.data?.recommendReasons ?? []).map((item) => [String(item?.songId), item?.reason]),
+  );
+  const songs = Array.isArray(result?.data?.dailySongs) ? result.data.dailySongs : [];
+  return {
+    songs: songs.map((song) => ({
+      ...mapSong(song),
+      reason: reasons.get(String(song?.id)) ?? song?.reason ?? null,
+    })),
+  };
+}
+
+export async function getSimilarSongs(songId, limit = 20, options = {}) {
+  const normalizedId = assertNumericId(songId, '歌曲 ID');
+  const size = Number(limit);
+  if (!Number.isInteger(size) || size < 1 || size > 50) throw new Error('limit 必须是 1–50 的整数。');
+  const result = await requestEapi('/api/v1/discovery/simiSong', {
+    songid: normalizedId,
+    limit: size,
+    offset: 0,
+  }, options);
+  return {
+    seedSongId: normalizedId,
+    songs: (Array.isArray(result?.songs) ? result.songs : []).map(mapSong),
+  };
+}
+
+export async function getRecommendPlaylists(options = {}) {
+  const result = await requestEapi('/api/v1/discovery/recommend/resource', {}, options);
+  const playlists = Array.isArray(result?.recommend) ? result.recommend : [];
+  return {
+    playlists: playlists.map((playlist) => ({
+      id: String(playlist?.id ?? ''),
+      name: playlist?.name ?? '',
+      reason: playlist?.copywriter ?? null,
+      trackCount: Number(playlist?.trackCount ?? 0),
+      playCount: Number(playlist?.playcount ?? 0),
+      creator: playlist?.creator?.nickname ?? null,
+      pageUrl: playlist?.id ? `${API_ORIGIN}/#/playlist?id=${playlist.id}` : null,
+    })),
   };
 }
 
@@ -197,4 +353,34 @@ export async function addSongsToPlaylist(playlistId, songIds, options = {}) {
 
 export async function removeSongsFromPlaylist(playlistId, songIds, options = {}) {
   return manipulatePlaylistTracks(playlistId, songIds, 'del', options);
+}
+
+// /api/radio/like 实测会被风控拦截（code -460），改为直接增删「我喜欢的音乐」歌单，效果与红心一致。
+export async function setSongLiked(songId, like, options = {}) {
+  const normalizedId = assertNumericId(songId, '歌曲 ID');
+  if (typeof like !== 'boolean') throw new Error('like 必须是 true 或 false。');
+  const own = await listOwnPlaylists(options);
+  const likedPlaylist = own.playlists.find((playlist) => playlist.specialType === 5);
+  if (!likedPlaylist) throw new Error('没有找到「我喜欢的音乐」歌单。');
+  await requestEapi('/api/v1/playlist/manipulate/tracks', {
+    pid: likedPlaylist.id,
+    op: like ? 'add' : 'del',
+    trackIds: JSON.stringify([normalizedId]),
+  }, options);
+  return { updated: true, songId: normalizedId, liked: like };
+}
+
+export async function setPlaylistSubscribed(playlistId, subscribe, options = {}) {
+  const normalizedId = assertNumericId(playlistId, '歌单 ID');
+  if (typeof subscribe !== 'boolean') throw new Error('subscribe 必须是 true 或 false。');
+  const own = await listOwnPlaylists(options);
+  if (own.playlists.some((playlist) => playlist.id === normalizedId)) {
+    throw new Error('这是当前账号自己创建的歌单，不能收藏或取消收藏。');
+  }
+  await requestEapi(
+    subscribe ? '/api/playlist/subscribe' : '/api/playlist/unsubscribe',
+    { id: normalizedId },
+    options,
+  );
+  return { updated: true, playlistId: normalizedId, subscribed: subscribe };
 }

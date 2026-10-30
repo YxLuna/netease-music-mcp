@@ -18,10 +18,20 @@ import {
   addSongsToPlaylist,
   createPlaylist,
   getAccountStatus,
+  getDailyRecommendSongs,
+  getLikedSongs,
   getPlaylistAuthStatus,
-  listOwnPlaylists,
+  getPlaylistTracks,
+  getPlayRecord,
+  getRecommendPlaylists,
+  getSimilarSongs,
+  listAccountPlaylists,
   removeSongsFromPlaylist,
+  setPlaylistSubscribed,
+  setSongLiked,
 } from './playlist.js';
+
+const numericId = z.string().regex(/^\d{1,20}$/);
 
 function success(data) {
   return {
@@ -99,12 +109,145 @@ export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
   server.registerTool(
     'netease_playlist_list',
     {
-      title: '列出我创建的网易云歌单',
-      description: '使用本机登录会话列出当前账号拥有的歌单，供后续添加或移除歌曲。',
+      title: '列出我的网易云歌单',
+      description:
+        '列出当前账号的歌单。include=created 只列自建（默认，含 specialType=5 的「我喜欢的音乐」），subscribed 只列收藏的别人的歌单，all 两者都列；owned=true 的歌单才能加歌或移除。',
+      inputSchema: z.object({
+        include: z.enum(['created', 'subscribed', 'all']).default('created'),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ include }) =>
+      guarded('playlist:read', () => listAccountPlaylists(include, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_playlist_tracks',
+    {
+      title: '读取网易云歌单曲目',
+      description: '按歌单 ID 分页读取曲目（自建、收藏或公开歌单均可），按歌单原顺序返回歌名、歌手、专辑、时长。',
+      inputSchema: z.object({
+        playlistId: numericId,
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ playlistId, limit, offset }) =>
+      guarded('playlist:read', () =>
+        getPlaylistTracks(playlistId, { limit, offset }, accountOptions),
+      ),
+  );
+
+  server.registerTool(
+    'netease_liked_songs',
+    {
+      title: '读取「我喜欢的音乐」',
+      description:
+        '分页读取当前账号红心过的歌曲。idsOnly=true 时只返回全部歌曲 ID（不分页），适合推荐时去重。',
+      inputSchema: z.object({
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+        idsOnly: z.boolean().default(false),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ limit, offset, idsOnly }) =>
+      guarded('playlist:read', () => getLikedSongs({ limit, offset, idsOnly }, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_play_record',
+    {
+      title: '读取听歌排行',
+      description: '读取当前账号的听歌排行。period=week 为最近一周，all 为所有时间；附带播放次数和相对得分。',
+      inputSchema: z.object({
+        period: z.enum(['week', 'all']).default('week'),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ period }) => guarded('playlist:read', () => getPlayRecord(period, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_daily_recommend',
+    {
+      title: '读取每日推荐歌曲',
+      description: '读取当前账号今天的每日推荐歌曲及网易云给出的推荐理由（如有）。',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async () => guarded('playlist:read', () => listOwnPlaylists(accountOptions)),
+    async () => guarded('playlist:read', () => getDailyRecommendSongs(accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_similar_songs',
+    {
+      title: '查找相似歌曲',
+      description: '给定一首歌曲 ID，返回网易云认为相似的歌曲，用作推荐候选。',
+      inputSchema: z.object({
+        songId: numericId,
+        limit: z.number().int().min(1).max(50).default(20),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ songId, limit }) =>
+      guarded('playlist:read', () => getSimilarSongs(songId, limit, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_recommend_playlists',
+    {
+      title: '读取每日推荐歌单',
+      description: '读取当前账号今天的推荐歌单列表；曲目可再用 netease_playlist_tracks 读取。',
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async () => guarded('playlist:read', () => getRecommendPlaylists(accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_song_like',
+    {
+      title: '红心或取消红心歌曲',
+      description: 'like=true 把歌曲加入「我喜欢的音乐」，false 取消红心。必须在用户明确确认后调用。',
+      inputSchema: z.object({
+        songId: numericId,
+        like: z.boolean(),
+        confirm: z.literal(true).describe('用户已明确确认这次红心变更'),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ songId, like }) =>
+      guarded('playlist:write', () => setSongLiked(songId, like, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_playlist_subscribe',
+    {
+      title: '收藏或取消收藏歌单',
+      description: 'subscribe=true 收藏别人的歌单，false 取消收藏；不能用于自己创建的歌单。必须在用户明确确认后调用。',
+      inputSchema: z.object({
+        playlistId: numericId,
+        subscribe: z.boolean(),
+        confirm: z.literal(true).describe('用户已明确确认这次收藏变更'),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ playlistId, subscribe }) =>
+      guarded('playlist:write', () =>
+        setPlaylistSubscribed(playlistId, subscribe, accountOptions),
+      ),
   );
 
   server.registerTool(

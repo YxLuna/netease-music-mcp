@@ -151,7 +151,7 @@ function mapArtists(artists) {
   return Array.isArray(artists) ? artists.map((artist) => artist?.name).filter(Boolean) : [];
 }
 
-function mapSong(song) {
+export function mapSong(song) {
   const album = song?.album ?? song?.al ?? {};
   const artists = song?.artists ?? song?.ar ?? [];
   return {

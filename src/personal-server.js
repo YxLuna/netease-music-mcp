@@ -198,8 +198,8 @@ function safeReturnTo(value) {
 function scopeLabels(scopes) {
   const labels = {
     'music:read': '搜索歌曲、读取歌曲资料',
-    'playlist:read': '查看你创建的歌单',
-    'playlist:write': '在你确认后创建或修改歌单',
+    'playlist:read': '查看你的歌单、喜欢的音乐、听歌排行和每日推荐',
+    'playlist:write': '在你确认后创建或修改歌单、红心歌曲、收藏歌单',
     'player:control': '控制已连接设备上的本地播放器',
   };
   return scopes.map(

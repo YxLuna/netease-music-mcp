@@ -98,13 +98,25 @@ test('serves MCP initialize and tools/list over stateless HTTP', async () => {
     });
     assert.equal(tools.status, 200);
     const listed = await readMcpResponse(tools);
-    assert.equal(listed.result.tools.length, 17);
+    assert.equal(listed.result.tools.length, 25);
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_account_status'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_control'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_next_track'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_playlist_create'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_playlist_add_songs'));
     assert.ok(listed.result.tools.some((tool) => tool.name === 'netease_playlist_remove_songs'));
+    for (const name of [
+      'netease_playlist_tracks',
+      'netease_liked_songs',
+      'netease_play_record',
+      'netease_daily_recommend',
+      'netease_similar_songs',
+      'netease_recommend_playlists',
+      'netease_song_like',
+      'netease_playlist_subscribe',
+    ]) {
+      assert.ok(listed.result.tools.some((tool) => tool.name === name), name);
+    }
     assert.ok(
       listed.result.tools.some((tool) => tool.name === 'netease_listen_together_invite'),
     );
