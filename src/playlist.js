@@ -288,6 +288,31 @@ export async function getSimilarSongs(songId, limit = 20, options = {}) {
   };
 }
 
+// 云盘歌曲有自己的歌曲 ID，可直接用于红心、加歌单；上传仍由用户在官方客户端完成。
+export async function getCloudSongs({ limit, offset } = {}, options = {}) {
+  const page = normalizePage(limit, offset);
+  const result = await requestEapi('/api/v1/cloud/get', page, options);
+  const items = Array.isArray(result?.data) ? result.data : [];
+  const total = Number(result?.count ?? items.length);
+  return {
+    total,
+    offset: page.offset,
+    limit: page.limit,
+    hasMore: page.offset + items.length < total,
+    usedBytes: Number(result?.size ?? 0),
+    maxBytes: Number(result?.maxSize ?? 0),
+    songs: items.map((item) => ({
+      id: String(item?.songId ?? item?.simpleSong?.id ?? ''),
+      name: item?.songName ?? item?.simpleSong?.name ?? '',
+      artists: item?.artist ? [item.artist] : (item?.simpleSong?.ar ?? []).map((a) => a?.name).filter(Boolean),
+      album: item?.album ?? item?.simpleSong?.al?.name ?? '',
+      fileName: item?.fileName ?? null,
+      sizeBytes: Number(item?.fileSize ?? 0),
+      uploadedAt: item?.addTime ? new Date(Number(item.addTime)).toISOString() : null,
+    })),
+  };
+}
+
 export async function getRecommendPlaylists(options = {}) {
   const result = await requestEapi('/api/v1/discovery/recommend/resource', {}, options);
   const playlists = Array.isArray(result?.recommend) ? result.recommend : [];

@@ -48,6 +48,7 @@
 - `netease_daily_recommend`：读取每日推荐歌曲及推荐理由。
 - `netease_similar_songs`：按歌曲查找相似歌曲。
 - `netease_recommend_playlists`：读取每日推荐歌单。
+- `netease_cloud_songs`：分页列出云盘里自己上传的歌曲及云盘用量。
 - `netease_playlist_create`：创建公开或隐私歌单。
 - `netease_playlist_add_songs`：添加歌曲到指定歌单。
 - `netease_playlist_remove_songs`：从指定歌单移除歌曲。

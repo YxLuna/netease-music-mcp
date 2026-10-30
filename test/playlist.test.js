@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createDecipheriv } from 'node:crypto';
 
 import {
+  getCloudSongs,
   getDailyRecommendSongs,
   getLikedSongs,
   getPlaylistTracks,
@@ -147,6 +148,37 @@ test('reads daily songs with reasons, similar songs and recommended playlists', 
 
   const playlists = await getRecommendPlaylists(options);
   assert.equal(playlists.playlists[0].reason, '根据你喜欢的单曲推荐');
+});
+
+test('lists cloud disk songs with usage and paging', async () => {
+  const { calls, options } = fakeNetease({
+    '/api/v1/cloud/get': () => ({
+      count: 3,
+      size: 1024,
+      maxSize: 4096,
+      data: [
+        { songId: 81, songName: '卡农-Rain-Piano', artist: '云汐', album: '', fileName: 'canon.mp3', fileSize: 512, addTime: 0 },
+        { songId: 82, simpleSong: { id: 82, name: '晴天', ar: [{ name: '周杰伦' }], al: { name: '叶惠美' } } },
+      ],
+    }),
+  });
+  const result = await getCloudSongs({ limit: 2, offset: 0 }, options);
+  assert.equal(result.total, 3);
+  assert.equal(result.hasMore, true);
+  assert.equal(result.usedBytes, 1024);
+  assert.deepEqual(result.songs[0], {
+    id: '81',
+    name: '卡农-Rain-Piano',
+    artists: ['云汐'],
+    album: '',
+    fileName: 'canon.mp3',
+    sizeBytes: 512,
+    uploadedAt: null,
+  });
+  assert.deepEqual(result.songs[1].artists, ['周杰伦']);
+  assert.equal(result.songs[1].album, '叶惠美');
+  assert.deepEqual(calls.find((call) => call.apiPath === '/api/v1/cloud/get').payload.limit, 2);
+  await assert.rejects(getCloudSongs({ limit: 0 }, options), /limit/);
 });
 
 test('likes songs and subscribes only to playlists owned by others', async () => {

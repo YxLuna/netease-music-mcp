@@ -18,6 +18,7 @@ import {
   addSongsToPlaylist,
   createPlaylist,
   getAccountStatus,
+  getCloudSongs,
   getDailyRecommendSongs,
   getLikedSongs,
   getPlaylistAuthStatus,
@@ -193,6 +194,22 @@ export function createNeteaseMcpServer({ authInfo, accountContext } = {}) {
     },
     async ({ songId, limit }) =>
       guarded('playlist:read', () => getSimilarSongs(songId, limit, accountOptions)),
+  );
+
+  server.registerTool(
+    'netease_cloud_songs',
+    {
+      title: '读取我的网易云云盘',
+      description:
+        '分页列出当前账号云盘里自己上传的歌曲（含文件名、大小、上传时间）及云盘用量；返回的 id 可直接用于红心或加入自己的歌单。不支持上传。',
+      inputSchema: z.object({
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ limit, offset }) =>
+      guarded('playlist:read', () => getCloudSongs({ limit, offset }, accountOptions)),
   );
 
   server.registerTool(
